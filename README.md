@@ -12,7 +12,7 @@ This repository documents an experimental journey to construct a **Lifelong Lear
 
 Moving away from standard backpropagation and static weights, we explored **Bio-Plausible Plasticity**, where the network architecture and synaptic weights evolve in real-time during inference. This work serves as a practical implementation and validation of concepts proposed in recent literature regarding Intelligence Foundation Models (IFM) and State Neural Networks (SNN).
 
-**Primary Reference:**
+ **Primary Reference:**
 
 * Liu, Z., et al. (2025). **Intelligence Foundation Model: A New Perspective to Approach Artificial General Intelligence**. arXiv:2511.10119.
 
@@ -134,7 +134,13 @@ python examples/train_cifar10.py
 
 To solve the Stability-Plasticity dilemma, we synthesized a **three-layer architecture** that decouples structural capacity, long-term retention, and short-term adaptation.
 
+![Triarchic Architecture Overview](assets/3.jpeg)
+*Figure: The three-phase continual learning timeline showing how the brain maintains memory (purple line) while adapting to new tasks and distributional shifts.*
+
 ### Layer 1: The Base (Structural Neurogenesis)
+
+![Layer 1: BASE](assets/1.jpeg)
+*Figure: Structural plasticity mechanism. Dead neurons (low utility) are reincarnated when novel inputs are detected, enabling dynamic capacity expansion.*
 
 **Purpose:** Dynamic capacity expansion through sparse orthogonal coding
 
@@ -167,6 +173,9 @@ if max(hidden) < threshold:
 - Olshausen, B. A., & Field, D. J. (1996). Emergence of simple-cell receptive fields.
 
 ### Layer 2: The Core (Synaptic Consolidation)
+
+![Layer 2: CORE](assets/2.jpeg)
+*Figure: Synaptic consolidation mechanism. Importance-based protection (locks) prevent catastrophic forgetting of established memories by blocking updates to critical synapses.*
 
 **Purpose:** Protected long-term memory with importance-weighted updates
 
@@ -264,6 +273,25 @@ Step    Phase        Task Acc    Memory Acc    Context Energy    Core Energy
 - **Memory retention**: Animal accuracy stays ~70% throughout vehicle and storm phases
 - **Context spike**: Context energy increases during storm, then decays
 - **Core stability**: Core energy grows slowly and plateaus, showing consolidation
+
+### Training Results Visualization
+
+![Training Results](assets/result.png)
+*Figure: Complete training dynamics across three phases. Top: Task accuracy (green) and core memory retention (purple) showing no catastrophic forgetting. Bottom: Context vs Core synaptic energy demonstrating dual-frequency learning.*
+
+---
+
+## Visual Analysis: Brain Activity Under Different Conditions
+
+### Normal Inputs (Stable Core Dominance)
+
+![Normal Condition Analysis](assets/eval.png)
+*Figure: Brain activity during normal inputs. Left: Input images. Middle: Sparse neural activity patterns (only ~31 neurons fire). Right: Synaptic contributions showing strong Core (blue) dominance for stable predictions.*
+
+### Perturbed Inputs (Context Adaptation)
+
+![Perturbed Condition Analysis](assets/eval2.png)
+*Figure: Brain activity during color-inverted inputs. Context layer (orange) compensates for the perturbation while Core (blue) remains stable, demonstrating adaptation without permanent memory changes.*
 
 ---
 
