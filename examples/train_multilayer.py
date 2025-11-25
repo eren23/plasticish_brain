@@ -35,7 +35,7 @@ def main():
     LR_BRAIN = 0.04
     
     # Memory
-    MEMORY_SIZE = 60000
+    MEMORY_SIZE = 500_000
     K_NEIGHBORS = 50
     
     # Training
