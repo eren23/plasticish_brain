@@ -9,7 +9,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="plasticish",
-    version="0.1.0",
+    version="0.2.0",
     author="Plasticish Brain Contributors",
     description="Bio-inspired continual learning library with triarchic neural architecture",
     long_description=long_description,
@@ -31,7 +31,7 @@ setup(
     install_requires=[
         "torch>=2.0.0",
         "torchvision>=0.15.0",
-        "numpy>=1.21.0",
+        "numpy>=1.21.0,<2.0.0",  # torch 2.2.2 requires numpy 1.x
         "matplotlib>=3.5.0",
         "seaborn>=0.11.0",
     ],

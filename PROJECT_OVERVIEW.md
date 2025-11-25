@@ -6,41 +6,66 @@ Transformed a research prototype into a **production-ready library** for bio-ins
 
 ---
 
-## Final Project Structure
+## Project Structure
 
 ```
 plasticish_brain/
 │
 ├── LIBRARY (Core Components)
 │   └── plasticish/
-│       ├── __init__.py              # Public API
-│       ├── models.py                # PretrainedEyes, TriarchicBrain (470 lines)
-│       ├── training.py              # Trainer, utilities (380 lines)
-│       └── visualization.py         # Analysis tools (320 lines)
+│       ├── __init__.py              # Public API exports (v0.2.0)
+│       ├── models.py                # Neural architectures (~870 lines)
+│       │   ├── PretrainedEyes       # Frozen ResNet18 feature extractor
+│       │   ├── NeuromodulatedBlock  # Pluggable plastic layer with local learning
+│       │   ├── EpisodicMemoryBank   # KNN-based hippocampal memory
+│       │   ├── PlasticBrain         # Multi-layer pluggable architecture (NEW)
+│       │   └── TriarchicBrain       # Legacy 3-layer architecture
+│       ├── training.py              # Training utilities (~610 lines)
+│       │   ├── PhaseConfig          # Training phase configuration
+│       │   ├── TrainingHistory      # Metrics tracking container
+│       │   ├── PlasticTrainer       # Multi-phase trainer (NEW)
+│       │   ├── TriarchicTrainer     # Legacy trainer
+│       │   └── Utilities            # invert_colors, add_noise, blur_image
+│       └── visualization.py         # Analysis tools (~810 lines)
+│           ├── PlasticVisualizer    # Multi-layer visualization suite (NEW)
+│           ├── TriarchicVisualizer  # Legacy visualization
+│           └── denormalize_imagenet # Image display utility
 │
 ├── EXAMPLES (Usage Demonstrations)
 │   └── examples/
-│       └── train_cifar10.py         # Complete workflow (180 lines)
+│       ├── __init__.py              # Package exports
+│       ├── cifar10_utils.py         # CIFAR-10 data loading utilities
+│       ├── train_multilayer.py      # PlasticBrain example (RECOMMENDED)
+│       ├── train_cifar10.py         # TriarchicBrain example (legacy)
+│       ├── visualization.py         # Additional visualization tools
+│       └── plasticish_brain_example.ipynb  # Jupyter notebook tutorial
+│
+├── ASSETS (Documentation Images)
+│   └── assets/
+│       ├── 1.jpeg, 2.jpeg, 3.jpeg   # Architecture diagrams
+│       ├── eval.png, eval2.png      # Evaluation visualizations
+│       └── result.png               # Training results
+│
+├── DATA (Auto-downloaded)
+│   └── data/
+│       └── cifar-10-batches-py/     # CIFAR-10 dataset
 │
 ├── DOCUMENTATION
-│   ├── README.md                    # Complete documentation (350 lines)
+│   ├── README.md                    # Complete documentation
 │   ├── QUICKSTART.md                # Get started in 5 minutes
-│   ├── SUMMARY.md                   # Technical summary
-│   ├── MIGRATION.md                 # Legacy code → Library guide
 │   └── PROJECT_OVERVIEW.md          # This file
 │
 └── CONFIGURATION
-   ├── setup.py                     # Package installation
-   ├── requirements.txt             # Dependencies
-   ├── LICENSE                      # MIT License
-   └── .gitignore                   # Git exclusions
+    ├── setup.py                     # Package installation (v0.2.0)
+    ├── requirements.txt             # Dependencies
+    └── LICENSE                      # MIT License
 ```
 
 ---
 
-## Architecture: The Triarchic System
+## Architecture: The Plastic Brain System
 
-### Visual Overview
+### Visual Overview (v0.2.0 - Multi-Layer Architecture)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -57,36 +82,60 @@ plasticish_brain/
                     FEATURES (512)
                              ↓
 ┌─────────────────────────────────────────────────────────────────┐
+│                      PLASTIC BRAIN                               │
+│                   (Pluggable Layers)                             │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │           NEUROMODULATED BLOCK (Layer 0)                    │ │
+│  │  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────┐ │ │
+│  │  │ Encoder  │ →  │ Sparse   │ →  │ Decoder  │ →  │ Gate │ │ │
+│  │  │ (512→H)  │    │ Top-K    │    │ (H→512)  │    │      │ │ │
+│  │  └──────────┘    └──────────┘    └──────────┘    └──────┘ │ │
+│  │  + Maturity Mask + Freq Count + Neurogenesis               │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                              ↓ (Residual)                        │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │           NEUROMODULATED BLOCK (Layer 1)                    │ │
+│  │                    ... (same structure) ...                 │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                              ↓                                   │
+│                           ... N layers (pluggable) ...           │
+│                              ↓                                   │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │                  BATCH NORMALIZATION                        │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                              ↓                                   │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │              EPISODIC MEMORY BANK (KNN)                     │ │
+│  │   • Store (key, value) pairs                                │ │
+│  │   • Soft voting via k-nearest neighbors                     │ │
+│  │   • One-shot learning, no forgetting                        │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                              ↓                                   │
+│                   OUTPUT LOGITS (10 classes)                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Legacy: Triarchic System (v0.1.x)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
 │                    TRIARCHIC BRAIN                               │
 │                                                                   │
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │ LAYER 1: BASE (Structural Neurogenesis)                   │  │
 │  │ • Sparse projection: 512 → 8192                           │  │
 │  │ • k-WTA sparsity: Only 32/8192 active (~0.4%)            │  │
-│  │ • Dynamic neuron birth when needed                        │  │
-│  │ • Role: Create orthogonal representations                 │  │
 │  └──────────────────────────┬───────────────────────────────┘  │
-│                              ↓                                   │
-│                    SPARSE HIDDEN (8192)                          │
 │                              ↓                                   │
 │       ┌──────────────────────┴──────────────────────┐          │
 │       ↓                                              ↓          │
 │  ┌─────────────────────┐                  ┌──────────────────┐ │
 │  │ LAYER 2: CORE       │                  │ LAYER 3: CONTEXT │ │
 │  │ (Consolidation)     │                  │ (Fast Adaptation)│ │
-│  │                     │                  │                  │ │
 │  │ • Slow learning     │                  │ • Fast learning  │ │
-│  │   (α = 0.05)        │                  │   (α = 0.5)      │ │
-│  │ • Protected by      │                  │ • Exponential    │ │
-│  │   importance        │                  │   decay (0.8)    │ │
-│  │ • Stable memory     │                  │ • Temporary      │ │
-│  │ • No decay          │                  │   adaptation     │ │
-│  │                     │                  │                  │ │
-│  │ Role: Long-term     │                  │ Role: Short-term │ │
-│  │ knowledge           │                  │ context          │ │
+│  │ • Protected weights │                  │ • Fast decay     │ │
 │  └──────────┬──────────┘                  └────────┬─────────┘ │
-│             ↓                                      ↓           │
-│       CORE LOGITS (10)                      CONTEXT LOGITS (10)│
 │             └──────────────┬───────────────────────┘           │
 │                            ↓                                    │
 │                   COMBINED OUTPUT (10)                          │
@@ -195,29 +244,71 @@ Interpretation: Brain retains animal knowledge (Core) while
 
 ## Usage 
 
-```python
+### New API (v0.2.0 - PlasticBrain)
 
+```python
+from plasticish import PlasticBrain, PlasticTrainer, PlasticVisualizer, PhaseConfig
+from examples.cifar10_utils import create_cifar10_loaders
+
+device = 'cuda'
+loaders = create_cifar10_loaders(batch_size=256)
+
+# Create multi-layer plastic brain
+brain = PlasticBrain(
+    in_dim=512,
+    hidden_dim=4096,
+    sparsity_k=128,
+    num_layers=4,
+    memory_size=60000,
+    device=device
+)
+
+# Define training phases
+phases = [
+    PhaseConfig("Vehicles", 3, loaders['train_vehicles'], mode="plastic", consolidate_after=True),
+    PhaseConfig("Animals", 3, loaders['train_animals'], mode="plastic", consolidate_after=True),
+    PhaseConfig("Storm", 3, loaders['storm_vehicles'], mode="panic"),
+]
+
+# Train
+trainer = PlasticTrainer(brain, phases, eval_loaders={'test': loaders['test_mixed']}, device=device)
+history = trainer.train()
+trainer.plot_results()
+
+# Visualize multi-layer activity
+visualizer = PlasticVisualizer(brain, device=device)
+visualizer.trace_thought(loaders['storm_vehicles'])
+```
+
+### Legacy API (v0.1.x - TriarchicBrain)
+
+```python
 from plasticish import PretrainedEyes, TriarchicBrain, TriarchicTrainer, PhaseConfig
-from plasticish.training import create_cifar10_loaders, invert_colors
+from plasticish.training import invert_colors
+from examples.cifar10_utils import create_cifar10_loaders
 
 device = 'cuda'
 eyes = PretrainedEyes(device=device)
 brain = TriarchicBrain(512, 8192, 10, 32, device=device)
 
-animal_loader, vehicle_loader, memory_test, dataset = create_cifar10_loaders(64)
+loaders = create_cifar10_loaders(batch_size=64)
 
 phases = [
-    PhaseConfig("Animals", 1500, animal_loader),
-    PhaseConfig("Vehicles", 1000, vehicle_loader),
-    PhaseConfig("Storm", 1500, animal_loader, transform_fn=invert_colors)
+    PhaseConfig("Animals", 3, loaders['train_animals']),
+    PhaseConfig("Vehicles", 2, loaders['train_vehicles']),
+    PhaseConfig("Storm", 3, loaders['train_animals'], transform_fn=invert_colors)
 ]
 
-trainer = TriarchicTrainer(brain, eyes, phases, memory_test, device=device)
-history = trainer.train()        # Automatic logging
-trainer.plot_results()            # Automatic visualization
+trainer = TriarchicTrainer(brain, eyes, phases, memory_test_loader, device=device)
+history = trainer.train()
+trainer.plot_results()
 ```
 
-**Code Reduction**: 94% fewer lines for typical usage!
+**Key Improvements in v0.2.0**:
+- Pluggable multi-layer architecture (add/remove/replace layers dynamically)
+- Training modes: "plastic" (normal) and "panic" (storm adaptation)  
+- Episodic memory bank (KNN-based, one-shot learning)
+- Self-supervised reward signal from memory predictions
 
 ---
 
@@ -227,43 +318,64 @@ trainer.plot_results()            # Automatic visualization
 | ----------------------------- | ---------------------------------- | -------------- |
 | **README.md**           | Complete documentation with theory | Everyone       |
 | **QUICKSTART.md**       | Get running in 5 minutes           | New users      |
-| **SUMMARY.md**          | Technical deep dive                | Researchers    |
-| **MIGRATION.md**        | Legacy → Library guide            | Existing users |
 | **PROJECT_OVERVIEW.md** | This file - big picture            | Everyone       |
+
+## Example Files
+
+| File                              | Purpose                                    | Recommended |
+| --------------------------------- | ------------------------------------------ | ----------- |
+| **train_multilayer.py**     | PlasticBrain with pluggable layers         | ✅ Yes       |
+| **train_cifar10.py**        | Legacy TriarchicBrain example              | For legacy  |
+| **cifar10_utils.py**        | CIFAR-10 data loading utilities            | Import      |
+| **visualization.py**        | Additional visualization tools             | Optional    |
+| **plasticish_brain_example.ipynb** | Interactive Jupyter notebook tutorial | ✅ Yes       |
 
 ---
 
 ## Key Innovations
 
-### 1. **Triarchic Architecture**
+### v0.2.0 - Multi-Layer Pluggable Architecture
 
-- First practical PyTorch implementation of IFM concepts
-- Decouples capacity, stability, and plasticity
-- Bio-inspired but GPU-optimized
+### 1. **NeuromodulatedBlock (Pluggable Layers)**
 
-### 2. **Dynamic Neurogenesis**
+- Add/remove/replace layers dynamically at runtime
+- Local Hebbian learning with reward modulation
+- Per-layer maturity protection and neurogenesis
+- Gated residual connections (LayerScale-style)
+
+### 2. **EpisodicMemoryBank (KNN Memory)**
+
+- One-shot learning via (key, value) storage
+- Soft voting based on k-nearest neighbors
+- No forgetting of stored memories
+- Interpretable: inspect which memories influenced predictions
+
+### 3. **Training Modes**
+
+- **Plastic Mode**: Normal Hebbian plasticity with maturity protection
+- **Panic Mode**: Aggressive adaptation with boosted signals
+
+### 4. **Self-Supervised Reward Signal**
+
+- Learning from memory prediction correctness
+- No external supervision needed after initial memory population
+
+### Legacy (v0.1.x) - Triarchic Architecture
+
+### 5. **Dynamic Neurogenesis**
 
 - Automatic capacity expansion
-- No architectural changes needed
 - Utility-based neuron recycling
 
-### 3. **Synaptic Consolidation**
+### 6. **Synaptic Consolidation**
 
 - Importance-weighted protection
 - Prevents catastrophic forgetting
-- Inspired by biological memory consolidation
 
-### 4. **Dual-Frequency Weights**
+### 7. **Dual-Frequency Weights**
 
 - Stable core + adaptive context
 - Handles temporary shifts gracefully
-- No permanent damage from noise
-
-### 5. **Modular Library Design**
-
-- Reusable components
-- Easy experimentation
-- Production-ready code quality
 
 ---
 
@@ -273,11 +385,14 @@ trainer.plot_results()            # Automatic visualization
 # Install
 pip install -r requirements.txt
 
-# Run example
+# Run new multi-layer example (recommended)
+python examples/train_multilayer.py
+
+# Run legacy triarchic example
 python examples/train_cifar10.py
 
 # Test imports (if torch installed)
-python -c "from plasticish import *; print('✓ Library works!')"
+python -c "from plasticish import PlasticBrain, PlasticTrainer; print('✓ Library works!')"
 ```
 
 ---
@@ -364,11 +479,13 @@ Areas of interest:
 
 ## Success Metrics
 
-**Code Quality**: From 248-line script → Modular 1200-line library
-**Documentation**: 3x more comprehensive
-**Usability**: 94% code reduction for typical usage
-**Functionality**: All features preserved and enhanced
-**Extensibility**: Easy to customize and extend
+**Version**: 0.2.0 (Multi-Layer Pluggable Architecture)
+**Code Quality**: From 248-line script → Modular ~2300-line library
+**Documentation**: Comprehensive with examples and tutorials
+**Usability**: Simple API for typical usage, flexible for advanced users
+**Functionality**: Pluggable layers, training modes, episodic memory
+**Extensibility**: Easy to add custom layers, memory systems, and visualizations
+**Backwards Compatibility**: Legacy TriarchicBrain API preserved
 
 ---
 

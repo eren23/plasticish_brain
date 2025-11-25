@@ -34,50 +34,123 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-### Basic Usage
+### Basic Usage (v0.2.0 - PlasticBrain)
 
 ```python
 import torch
-from plasticish import PretrainedEyes, TriarchicBrain, TriarchicTrainer, PhaseConfig
-from plasticish.training import create_cifar10_loaders, invert_colors
+from plasticish import PlasticBrain, PlasticTrainer, PhaseConfig
+from examples.cifar10_utils import create_cifar10_loaders
 
 # Setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+loaders = create_cifar10_loaders(batch_size=256)
 
-# Create model
-eyes = PretrainedEyes(device=device)
-brain = TriarchicBrain(
-    in_size=512,           # ResNet18 features
-    hidden_size=8192,      # Sparse expansion
-    out_size=10,           # CIFAR-10 classes
-    sparsity_k=32,         # Active neurons per sample
+# Create multi-layer plastic brain
+brain = PlasticBrain(
+    in_dim=512,            # ResNet18 features
+    hidden_dim=4096,       # Hidden neurons per layer
+    sparsity_k=128,        # Active neurons per sample
+    num_layers=4,          # Pluggable layers
+    memory_size=60000,     # Episodic memory capacity
     device=device
-)
-
-# Prepare data
-animal_loader, vehicle_loader, memory_test, full_dataset = create_cifar10_loaders(
-    batch_size=64
 )
 
 # Define curriculum (continual learning phases)
 phases = [
-    PhaseConfig("Animals", 1500, animal_loader),
-    PhaseConfig("Vehicles", 1000, vehicle_loader),
-    PhaseConfig("Storm", 1500, animal_loader, transform_fn=invert_colors)
+    PhaseConfig("Vehicles", 3, loaders['train_vehicles'], mode="plastic", consolidate_after=True),
+    PhaseConfig("Animals", 3, loaders['train_animals'], mode="plastic", consolidate_after=True),
+    PhaseConfig("Storm", 3, loaders['storm_vehicles'], mode="panic")
 ]
 
 # Train
-trainer = TriarchicTrainer(brain, eyes, phases, memory_test, device=device)
+trainer = PlasticTrainer(brain, phases, eval_loaders={'test': loaders['test_mixed']}, device=device)
 history = trainer.train()
 
 # Visualize results
 trainer.plot_results()
 ```
 
-### Run Example
+### Legacy Usage (v0.1.x - TriarchicBrain)
+
+```python
+from plasticish import PretrainedEyes, TriarchicBrain, TriarchicTrainer, PhaseConfig
+from plasticish.training import invert_colors
+from examples.cifar10_utils import create_cifar10_loaders
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+loaders = create_cifar10_loaders(batch_size=64)
+
+eyes = PretrainedEyes(device=device)
+brain = TriarchicBrain(512, 8192, 10, 32, device=device)
+
+phases = [
+    PhaseConfig("Animals", 3, loaders['train_animals']),
+    PhaseConfig("Vehicles", 2, loaders['train_vehicles']),
+    PhaseConfig("Storm", 3, loaders['train_animals'], transform_fn=invert_colors)
+]
+
+trainer = TriarchicTrainer(brain, eyes, phases, memory_test_loader, device=device)
+trainer.train()
+trainer.plot_results()
+```
+
+### Run Examples
 
 ```bash
+# New multi-layer architecture (recommended)
+python examples/train_multilayer.py
+
+# Legacy triarchic brain example
 python examples/train_cifar10.py
+```
+
+---
+
+## Project Structure
+
+```
+plasticish_brain/
+├── plasticish/                     # Core Library
+│   ├── __init__.py                 # Public API exports (v0.2.0)
+│   ├── models.py                   # Neural architectures
+│   │   ├── PretrainedEyes          # Frozen ResNet18 feature extractor
+│   │   ├── NeuromodulatedBlock     # Pluggable plastic layer
+│   │   ├── EpisodicMemoryBank      # KNN-based hippocampal memory
+│   │   ├── PlasticBrain            # Multi-layer plastic architecture (new)
+│   │   └── TriarchicBrain          # Legacy 3-layer architecture
+│   ├── training.py                 # Training utilities
+│   │   ├── PhaseConfig             # Training phase configuration
+│   │   ├── TrainingHistory         # Metrics tracking
+│   │   ├── PlasticTrainer          # Multi-phase trainer (new)
+│   │   ├── TriarchicTrainer        # Legacy trainer
+│   │   └── Utilities               # invert_colors, add_noise, blur_image
+│   └── visualization.py            # Analysis tools
+│       ├── PlasticVisualizer       # Multi-layer visualization (new)
+│       ├── TriarchicVisualizer     # Legacy visualization
+│       └── denormalize_imagenet    # Image display utility
+│
+├── examples/                       # Usage Examples
+│   ├── __init__.py                 # Package exports
+│   ├── cifar10_utils.py            # CIFAR-10 data loading utilities
+│   ├── train_multilayer.py         # PlasticBrain example (recommended)
+│   ├── train_cifar10.py            # TriarchicBrain example (legacy)
+│   ├── visualization.py            # Additional visualization tools
+│   └── plasticish_brain_example.ipynb  # Jupyter notebook tutorial
+│
+├── assets/                         # Documentation images
+│   ├── 1.jpeg, 2.jpeg, 3.jpeg      # Architecture diagrams
+│   ├── eval.png, eval2.png         # Evaluation visualizations
+│   └── result.png                  # Training results
+│
+├── data/                           # Dataset storage (auto-downloaded)
+│   └── cifar-10-batches-py/
+│
+├── README.md                       # Main documentation
+├── PROJECT_OVERVIEW.md             # Project overview
+├── QUICKSTART.md                   # Quick start guide
+├── requirements.txt                # Python dependencies
+├── setup.py                        # Package installation
+└── LICENSE                         # MIT License
 ```
 
 ---
@@ -297,57 +370,91 @@ Step    Phase        Task Acc    Memory Acc    Context Energy    Core Energy
 
 ## Advanced Usage
 
-### Custom Architectures
+### Custom Architectures (v0.2.0)
 
 ```python
-from plasticish import TriarchicBrain
+from plasticish import PlasticBrain
 
 # Create brain with custom hyperparameters
-brain = TriarchicBrain(
-    in_size=512,
-    hidden_size=16384,        # Larger capacity
-    out_size=100,             # ImageNet-100
-    sparsity_k=64,            # More active neurons
+brain = PlasticBrain(
+    in_dim=512,
+    hidden_dim=8192,          # Larger hidden dimension
+    sparsity_k=256,           # More active neurons
+    num_layers=6,             # More layers
+    memory_size=100000,       # Larger memory
+    k_neighbors=100,          # More neighbors for voting
+    lr_brain=0.02,            # Lower learning rate
     device='cuda'
 )
 
-# Adjust learning dynamics
-brain.context_lr = 0.8        # Faster context adaptation
-brain.context_decay = 0.9     # Slower decay
-brain.core_lr = 0.02          # Slower consolidation
-brain.consolidation_rate = 3.0  # Stronger protection
+# Dynamic layer management
+brain.add_layer()                    # Add a layer
+brain.remove_layer(2)                # Remove layer at index 2
+brain.freeze_layer(0)                # Freeze first layer
+brain.replace_layer(1, new_layer)    # Replace a layer
 ```
 
 ### Custom Training Phases
 
 ```python
 from plasticish import PhaseConfig
+from plasticish.training import add_noise, blur_image
 
 # Define complex curriculum
 phases = [
     PhaseConfig(
         name="Indoor",
-        n_steps=2000,
+        n_epochs=3,
         data_loader=indoor_loader,
+        mode="plastic",
+        memorize=True,
+        consolidate_after=True,
         description="Learn indoor scene categories"
     ),
     PhaseConfig(
         name="Outdoor",
-        n_steps=2000,
+        n_epochs=3,
         data_loader=outdoor_loader,
+        mode="plastic",
+        memorize=True,
+        consolidate_after=True,
         description="Expand to outdoor scenes"
     ),
     PhaseConfig(
         name="Foggy",
-        n_steps=1000,
+        n_epochs=2,
         data_loader=outdoor_loader,
-        transform_fn=lambda x: x * 0.5 + 0.3,  # Add fog
+        mode="panic",
+        transform_fn=blur_image,
         description="Adapt to weather conditions"
     )
 ]
 ```
 
-### Detailed Visualization
+### Multi-Layer Visualization (v0.2.0)
+
+```python
+from plasticish import PlasticVisualizer
+
+visualizer = PlasticVisualizer(brain, device='cuda', class_names=my_class_names)
+
+# Trace a thought through all layers
+visualizer.trace_thought(loader, use_panic_mode=True)
+
+# 2D matrix visualization of layer activity
+visualizer.trace_thought_matrix(loader)
+
+# Bio-inspired fMRI-style analysis
+visualizer.bio_debug_suite(normal_loader, storm_loader, layer_idx=0)
+
+# Compare statistics across all layers
+visualizer.plot_layer_comparison()
+
+# Visual inference test
+visualizer.visualize_inference(loader, num_samples=20, include_inverted=True)
+```
+
+### Legacy Visualization (TriarchicBrain)
 
 ```python
 from plasticish import TriarchicVisualizer
@@ -355,11 +462,7 @@ from plasticish import TriarchicVisualizer
 visualizer = TriarchicVisualizer(brain, eyes, device='cuda')
 
 # Compare normal vs perturbed inputs
-visualizer.compare_conditions(
-    dataset=test_dataset,
-    num_samples=4,
-    class_names=my_class_names
-)
+visualizer.compare_conditions(dataset, num_samples=4, class_names=my_class_names)
 
 # Analyze weight distributions
 visualizer.plot_weight_distribution()
