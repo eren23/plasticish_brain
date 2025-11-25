@@ -28,6 +28,10 @@ class PhaseConfig:
         transform_fn: Optional transformation applied to inputs (e.g., inversion)
         consolidate_after: Whether to consolidate features after this phase
         description: Optional description of what this phase tests
+        neurogenesis: Control neurogenesis for this phase:
+            - None: Use brain's default setting (no change)
+            - True: Enable neurogenesis (recycle dead neurons)
+            - False: Disable neurogenesis (preserve all neurons)
     
     Example:
         >>> phase = PhaseConfig(
@@ -37,6 +41,7 @@ class PhaseConfig:
         ...     mode="plastic",
         ...     memorize=True,
         ...     consolidate_after=True,
+        ...     neurogenesis=True,  # Enable neuron recycling
         ...     description="Learn animal categories"
         ... )
     """
@@ -48,6 +53,7 @@ class PhaseConfig:
     transform_fn: Optional[Callable] = None
     consolidate_after: bool = False
     description: Optional[str] = None
+    neurogenesis: Optional[bool] = None  # None = use brain default
 
 
 @dataclass
@@ -145,10 +151,14 @@ class PlasticTrainer:
             print("=" * 60)
         
         for phase_idx, phase in enumerate(self.phases):
+            if phase.neurogenesis is not None:
+                self.brain.set_neurogenesis(phase.neurogenesis)
+            
             if verbose:
                 print(f"\n{'='*60}")
                 print(f"PHASE {phase_idx + 1}: {phase.name.upper()}")
-                print(f"Mode: {phase.mode} | Epochs: {phase.n_epochs} | Memorize: {phase.memorize}")
+                neuro_str = "default" if phase.neurogenesis is None else ("ON" if phase.neurogenesis else "OFF")
+                print(f"Mode: {phase.mode} | Epochs: {phase.n_epochs} | Memorize: {phase.memorize} | Neurogenesis: {neuro_str}")
                 if phase.description:
                     print(f"Goal: {phase.description}")
                 print(f"{'='*60}\n")
@@ -192,6 +202,11 @@ class PlasticTrainer:
                     mean_acc = np.mean(epoch_accs)
                     print(f"  → Epoch {epoch+1}/{phase.n_epochs} complete | "
                           f"Mean Acc: {mean_acc:.2%}")
+            
+            if verbose and hasattr(self.brain, 'get_neurogenesis_stats'):
+                neuro_stats = self.brain.get_neurogenesis_stats()
+                if neuro_stats['total_recycled'] > 0:
+                    print(f"\n  > Neurogenesis: {neuro_stats['total_recycled']} neurons recycled")
             
             if phase.consolidate_after:
                 if verbose:

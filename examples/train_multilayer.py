@@ -95,6 +95,10 @@ def main():
     print(f"  Reset to: {brain.num_layers} layers")
     
     # === DEFINE TRAINING PHASES ===
+    # Note: neurogenesis=True (default) enables recycling of dead neurons
+    # - In plastic mode: 2% chance per step
+    # - In panic mode: 10% chance per step (more aggressive)
+    # Set neurogenesis=False to disable and preserve all neurons
     phases = [
         PhaseConfig(
             name="Vehicles",
@@ -103,6 +107,7 @@ def main():
             mode="plastic",
             memorize=True,
             consolidate_after=True,
+            neurogenesis=True,
             description="Learn vehicle categories (Plane, Car, Ship, Truck)"
         ),
         PhaseConfig(
@@ -112,6 +117,7 @@ def main():
             mode="plastic",
             memorize=True,
             consolidate_after=True,
+            neurogenesis=True,  # Continue recycling dead neurons
             description="Learn animal categories without forgetting vehicles"
         ),
         PhaseConfig(
@@ -121,6 +127,7 @@ def main():
             mode="panic",
             memorize=True,
             consolidate_after=False,
+            neurogenesis=True,  # Aggressive recycling in panic mode (10% chance)
             description="Adapt to inverted images using panic mode"
         ),
     ]
@@ -169,7 +176,13 @@ def main():
     print(f"  Memory fill: {stats['memory_fill']:.1%}")
     print(f"  Layers: {stats['num_layers']}")
     for i, layer_stats in stats['layers'].items():
-        print(f"    {i}: {layer_stats['n_mature']} mature, gate={layer_stats['gate_mean']:.4f}")
+        recycled = layer_stats.get('neurons_recycled', 0)
+        print(f"    {i}: {layer_stats['n_mature']} mature, {recycled} recycled, gate={layer_stats['gate_mean']:.4f}")
+    
+    # Neurogenesis summary
+    neuro_stats = brain.get_neurogenesis_stats()
+    print(f"\n--- Neurogenesis Summary ---")
+    print(f"  Total neurons recycled: {neuro_stats['total_recycled']}")
     
     # === VISUALIZATION ===
     print("\n--- Generating Plots ---")

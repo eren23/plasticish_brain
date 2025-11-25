@@ -99,6 +99,7 @@ class NeuromodulatedBlock(nn.Module):
         hidden_dim: int = 4096,
         sparsity_k: int = 128,
         lr: float = 0.04,
+        enable_neurogenesis: bool = True,
         device: str = 'cpu'
     ):
         super().__init__()
@@ -106,6 +107,7 @@ class NeuromodulatedBlock(nn.Module):
         self.hidden_dim = hidden_dim
         self.k = sparsity_k
         self.lr = lr
+        self.enable_neurogenesis = enable_neurogenesis
         self.device = device
         
         # === SYNAPSES (Encoder/Decoder pair) ===
@@ -129,6 +131,9 @@ class NeuromodulatedBlock(nn.Module):
         # Maturity mask: Protected neurons (1 = mature, 0 = plastic)
         self.register_buffer("maturity_mask", torch.zeros(hidden_dim, device=device))
         
+        # Neurogenesis tracking
+        self.neurogenesis_count = 0  # Total neurons recycled
+        
         # Cache for plasticity step
         self.cache = None
         
@@ -150,7 +155,7 @@ class NeuromodulatedBlock(nn.Module):
         self.freq_count.zero_()
         return int(self.maturity_mask.sum().item())
     
-    def neurogenesis(self, force: bool = False):
+    def neurogenesis(self, force: bool = False) -> int:
         """
         Recycle dead/weak neurons to learn new concepts.
         
@@ -159,6 +164,9 @@ class NeuromodulatedBlock(nn.Module):
         
         Args:
             force: If True, use aggressive threshold (for panic mode)
+        
+        Returns:
+            Number of neurons recycled
         """
         threshold = 0.05 if force else 0.01
         activity = self.freq_count / (self.freq_count.max() + 1e-6)
@@ -168,13 +176,18 @@ class NeuromodulatedBlock(nn.Module):
         targets = dead & (self.maturity_mask == 0)
         indices = targets.nonzero(as_tuple=True)[0]
         
-        if len(indices) > 0:
+        n_recycled = len(indices)
+        if n_recycled > 0:
             with torch.no_grad():
                 # Reinitialize dead neurons with random directions
-                new_w = torch.randn(len(indices), self.in_dim, device=self.device)
+                new_w = torch.randn(n_recycled, self.in_dim, device=self.device)
                 self.encoder.weight.data[indices] = F.normalize(new_w, p=2, dim=1)
                 self.decoder.weight.data[:, indices] = 0
                 self.freq_count[indices] = 0
+            
+            self.neurogenesis_count += n_recycled
+        
+        return n_recycled
     
     def forward(
         self,
@@ -273,9 +286,10 @@ class NeuromodulatedBlock(nn.Module):
             target = self.encoder.weight.data.t()
             self.decoder.weight.data = 0.95 * self.decoder.weight.data + 0.05 * target
             
-            # Stochastic neurogenesis
-            if torch.rand(1).item() < (0.1 if mode == "panic" else 0.02):
-                self.neurogenesis(force=(mode == "panic"))
+            # Stochastic neurogenesis (if enabled)
+            if self.enable_neurogenesis:
+                if torch.rand(1).item() < (0.1 if mode == "panic" else 0.02):
+                    self.neurogenesis(force=(mode == "panic"))
         
         self.cache = None
     
@@ -284,10 +298,17 @@ class NeuromodulatedBlock(nn.Module):
         return {
             'n_mature': int(self.maturity_mask.sum().item()),
             'n_active': int((self.freq_count > 0.1).sum().item()),
+            'n_dead': int((self.freq_count < 0.01).sum().item()),
             'gate_mean': self.gate.mean().item(),
             'freq_mean': self.freq_count.mean().item(),
-            'freq_max': self.freq_count.max().item()
+            'freq_max': self.freq_count.max().item(),
+            'neurogenesis_enabled': self.enable_neurogenesis,
+            'neurons_recycled': self.neurogenesis_count
         }
+    
+    def reset_neurogenesis_counter(self):
+        """Reset the neurogenesis counter (call at phase boundaries if desired)."""
+        self.neurogenesis_count = 0
 
 
 class EpisodicMemoryBank(nn.Module):
@@ -438,6 +459,7 @@ class PlasticBrain(nn.Module):
         k_neighbors: int = 50,
         num_classes: int = 10,
         lr_brain: float = 0.04,
+        enable_neurogenesis: bool = True,
         device: str = 'cpu'
     ):
         super().__init__()
@@ -446,6 +468,7 @@ class PlasticBrain(nn.Module):
         self.sparsity_k = sparsity_k
         self.num_classes = num_classes
         self.lr_brain = lr_brain
+        self.enable_neurogenesis = enable_neurogenesis
         self.device = device
         
         # === EYES: Pretrained feature extractor ===
@@ -458,6 +481,7 @@ class PlasticBrain(nn.Module):
                 hidden_dim=hidden_dim,
                 sparsity_k=sparsity_k,
                 lr=lr_brain,
+                enable_neurogenesis=enable_neurogenesis,
                 device=device
             )
             for _ in range(num_layers)
@@ -487,7 +511,8 @@ class PlasticBrain(nn.Module):
         index: Optional[int] = None,
         hidden_dim: Optional[int] = None,
         sparsity_k: Optional[int] = None,
-        lr: Optional[float] = None
+        lr: Optional[float] = None,
+        enable_neurogenesis: Optional[bool] = None
     ) -> int:
         """
         Add a new plastic layer.
@@ -497,6 +522,7 @@ class PlasticBrain(nn.Module):
             hidden_dim: Hidden size (None = use default)
             sparsity_k: Sparsity (None = use default)
             lr: Learning rate (None = use default)
+            enable_neurogenesis: Enable neurogenesis (None = use brain default)
         
         Returns:
             Index of the new layer
@@ -506,6 +532,7 @@ class PlasticBrain(nn.Module):
             hidden_dim=hidden_dim or self.hidden_dim,
             sparsity_k=sparsity_k or self.sparsity_k,
             lr=lr or self.lr_brain,
+            enable_neurogenesis=enable_neurogenesis if enable_neurogenesis is not None else self.enable_neurogenesis,
             device=self.device
         )
         
@@ -553,6 +580,7 @@ class PlasticBrain(nn.Module):
                 hidden_dim=self.hidden_dim,
                 sparsity_k=self.sparsity_k,
                 lr=self.lr_brain,
+                enable_neurogenesis=self.enable_neurogenesis,
                 device=self.device
             )
         
@@ -568,6 +596,45 @@ class PlasticBrain(nn.Module):
         """Unfreeze a layer (enable plasticity)."""
         layer = self.brain[index]
         layer.maturity_mask.zero_()
+    
+    def set_neurogenesis(self, enabled: bool):
+        """
+        Enable or disable neurogenesis for all layers.
+        
+        Neurogenesis recycles dead/weak neurons to learn new concepts.
+        Disabling it can save compute but may reduce adaptability.
+        
+        Args:
+            enabled: True to enable, False to disable
+        """
+        self.enable_neurogenesis = enabled
+        for layer in self.brain:
+            layer.enable_neurogenesis = enabled
+    
+    def get_neurogenesis_stats(self) -> dict:
+        """
+        Get neurogenesis statistics across all layers.
+        
+        Returns:
+            Dictionary with total and per-layer neurogenesis counts
+        """
+        stats = {
+            'enabled': self.enable_neurogenesis,
+            'total_recycled': sum(layer.neurogenesis_count for layer in self.brain),
+            'per_layer': {}
+        }
+        for i, layer in enumerate(self.brain):
+            stats['per_layer'][f'layer_{i}'] = {
+                'recycled': layer.neurogenesis_count,
+                'dead': int((layer.freq_count < 0.01).sum().item()),
+                'mature': int(layer.maturity_mask.sum().item())
+            }
+        return stats
+    
+    def reset_neurogenesis_counters(self):
+        """Reset neurogenesis counters for all layers."""
+        for layer in self.brain:
+            layer.reset_neurogenesis_counter()
     
     # === FORWARD PASS ===
     
