@@ -141,10 +141,15 @@ class NeuromodulatedBlock(nn.Module):
     
     def consolidate(self) -> int:
         """
-        Mark frequently active neurons as mature (protected from neurogenesis).
+        Mark frequently active neurons as mature (protected from change).
         
         This implements synaptic consolidation - neurons that have proven useful
-        become protected from being recycled during neurogenesis.
+        become "locked" and protected from:
+        1. Neurogenesis (cannot be recycled)
+        2. Plasticity in normal mode (learning rate = 0%)
+        3. Partial plasticity in panic mode (learning rate = 50%)
+        
+        This is key to preventing catastrophic forgetting when learning new tasks.
         
         Returns:
             Number of mature neurons after consolidation
@@ -152,7 +157,7 @@ class NeuromodulatedBlock(nn.Module):
         threshold = self.freq_count.mean()
         new_mature = (self.freq_count > threshold).float()
         self.maturity_mask = torch.max(self.maturity_mask, new_mature)
-        self.freq_count.zero_()
+        self.freq_count.zero_()  # Reset for next phase
         return int(self.maturity_mask.sum().item())
     
     def neurogenesis(self, force: bool = False) -> int:
@@ -271,7 +276,9 @@ class NeuromodulatedBlock(nn.Module):
             x_mod = x_norm * reward_signal.view(-1, 1)
             
             # Maturity protection: reduce learning rate for mature neurons
-            panic_factor = 0.5 if mode == "panic" else 0.99
+            # In plastic mode: mature neurons get 0% LR (frozen)
+            # In panic mode: mature neurons get 50% LR (allow relearning)
+            panic_factor = 0.5 if mode == "panic" else 1.0
             lr_vec = self.lr * (1.0 - panic_factor * self.maturity_mask).view(-1, 1)
             
             # Compute weight update direction
@@ -287,8 +294,9 @@ class NeuromodulatedBlock(nn.Module):
             self.decoder.weight.data = 0.95 * self.decoder.weight.data + 0.05 * target
             
             # Stochastic neurogenesis (if enabled)
+            # Reduced frequency: 5% in panic, 0.5% in plastic (was 10% and 2%)
             if self.enable_neurogenesis:
-                if torch.rand(1).item() < (0.1 if mode == "panic" else 0.02):
+                if torch.rand(1).item() < (0.05 if mode == "panic" else 0.005):
                     self.neurogenesis(force=(mode == "panic"))
         
         self.cache = None

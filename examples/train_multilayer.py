@@ -95,10 +95,11 @@ def main():
     print(f"  Reset to: {brain.num_layers} layers")
     
     # === DEFINE TRAINING PHASES ===
-    # Note: neurogenesis=True (default) enables recycling of dead neurons
-    # - In plastic mode: 2% chance per step
-    # - In panic mode: 10% chance per step (more aggressive)
-    # Set neurogenesis=False to disable and preserve all neurons
+    # Neurogenesis: Optional recycling of dead/weak neurons
+    # - Helps with memory efficiency and learning new concepts
+    # - Protected by consolidation: mature neurons cannot be recycled
+    # - Frequency: 0.5% per step (plastic mode) | 5% per step (panic mode)
+    # - Recommendation: Enable in phase 1, disable for retention-critical phases
     phases = [
         PhaseConfig(
             name="Vehicles",
@@ -107,7 +108,7 @@ def main():
             mode="plastic",
             memorize=True,
             consolidate_after=True,
-            neurogenesis=True,
+            neurogenesis=True,  # Enable to recycle unused neurons
             description="Learn vehicle categories (Plane, Car, Ship, Truck)"
         ),
         PhaseConfig(
@@ -117,7 +118,7 @@ def main():
             mode="plastic",
             memorize=True,
             consolidate_after=True,
-            neurogenesis=True,  # Continue recycling dead neurons
+            neurogenesis=False,  # Disable to preserve vehicle knowledge
             description="Learn animal categories without forgetting vehicles"
         ),
         PhaseConfig(
@@ -127,7 +128,7 @@ def main():
             mode="panic",
             memorize=True,
             consolidate_after=False,
-            neurogenesis=True,  # Aggressive recycling in panic mode (10% chance)
+            neurogenesis=False,  # Disable - panic mode already aggressive
             description="Adapt to inverted images using panic mode"
         ),
     ]
